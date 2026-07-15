@@ -1,0 +1,9 @@
+file '01-daily-case.png'
+duration 7
+file '02-cryptic-evidence.png'
+duration 9
+file '03-solved-result.png'
+duration 9
+file '04-leaderboard.png'
+duration 7
+file '04-leaderboard.png'

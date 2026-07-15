@@ -1,0 +1,93 @@
+.splash-shell {
+  align-items: center;
+  display: grid;
+  min-height: 100vh;
+  padding: 16px;
+}
+
+.splash-card {
+  background: #ffffff;
+  border: 1px solid #d8dde5;
+  border-radius: 8px;
+  box-shadow: none;
+  display: grid;
+  gap: 12px;
+  margin: 0 auto;
+  max-width: 440px;
+  padding: 20px;
+  text-align: center;
+}
+
+.splash-clue {
+  align-items: center;
+  background: #0f766e;
+  border-radius: 8px;
+  color: #ffffff;
+  display: inline-flex;
+  font-size: 20px;
+  font-weight: 900;
+  gap: 4px;
+  justify-content: center;
+  justify-self: center;
+  min-height: 58px;
+  width: 96px;
+}
+
+.splash-clue b {
+  align-items: center;
+  background: #f7c948;
+  border-radius: 3px;
+  color: #111827;
+  display: inline-flex;
+  height: 28px;
+  justify-content: center;
+  width: 28px;
+}
+
+.splash-kicker {
+  color: #c2410c;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.splash-card h1 {
+  font-size: 32px;
+}
+
+.splash-copy {
+  color: #475569;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.splash-card button {
+  background: #0f766e;
+  border: 1px solid #0f766e;
+  border-radius: 7px;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+  min-height: 46px;
+  justify-self: center;
+  min-width: 190px;
+}
+
+.splash-card button:focus-visible {
+  outline: 3px solid rgba(15, 118, 110, 0.3);
+  outline-offset: 3px;
+}
+
+.splash-meta,
+.splash-message {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.splash-message {
+  color: #9a3412;
+}

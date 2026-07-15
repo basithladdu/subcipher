@@ -1,0 +1,57 @@
+{
+  "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
+  "name": "sub-cipher",
+  "post": {
+    "dir": "dist",
+    "entrypoints": {
+      "default": {
+        "entry": "splash.html",
+        "height": "tall"
+      },
+      "game": {
+        "entry": "index.html",
+        "height": "tall"
+      }
+    }
+  },
+  "server": {
+    "dir": "dist/server",
+    "entry": "index.cjs"
+  },
+  "permissions": {
+    "redis": true,
+    "reddit": {
+      "enable": true,
+      "asUser": [
+        "SUBMIT_POST",
+        "SUBMIT_COMMENT"
+      ]
+    }
+  },
+  "scheduler": {
+    "tasks": {
+      "daily-post": {
+        "endpoint": "/internal/scheduler/daily-post",
+        "cron": "0 0 * * *"
+      }
+    }
+  },
+  "menu": {
+    "items": [
+      {
+        "label": "Open today's SubCipher case",
+        "description": "Create or open the current daily game post.",
+        "forUserType": "moderator",
+        "location": "subreddit",
+        "endpoint": "/internal/menu/create-daily-post"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "npm run build",
+    "dev": "npm run build -- --watch"
+  },
+  "dev": {
+    "subreddit": "sub_cipher_dev"
+  }
+}

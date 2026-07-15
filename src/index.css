@@ -1,0 +1,40 @@
+@font-face {
+  font-display: swap;
+  font-family: "Atkinson Hyperlegible";
+  font-style: normal;
+  font-weight: 400;
+  src: url("./assets/fonts/AtkinsonHyperlegible-Regular.ttf") format("truetype");
+}
+
+@font-face {
+  font-display: swap;
+  font-family: "Atkinson Hyperlegible";
+  font-style: normal;
+  font-weight: 700;
+  src: url("./assets/fonts/AtkinsonHyperlegible-Bold.ttf") format("truetype");
+}
+
+:root {
+  color: #1f2937;
+  background: #eef2f6;
+  font-family: "Atkinson Hyperlegible", Arial, Helvetica, sans-serif;
+  font-synthesis: none;
+  line-height: 1.45;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Atkinson Hyperlegible", Arial, Helvetica, sans-serif;
+  margin: 0;
+  min-width: 320px;
+}
+
+#root {
+  min-height: 100svh;
+}
