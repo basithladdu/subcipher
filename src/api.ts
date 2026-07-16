@@ -5,17 +5,22 @@ import {
   buildGuessRows,
   buildLeaderboard,
   buildShareText,
+  countRevealedLetters,
+  EVIDENCE_ORDER,
+  getNextEvidence,
   getResultKey,
   getTodaysPuzzle,
   isCorrectGuess,
+  normalizeEvidence,
   scoreResult,
   toPublicPuzzle,
 } from './game'
-import type { GameStatus, Guess, SavedResult } from './game'
+import type { EvidenceKey, GameStatus, Guess, SavedResult } from './game'
 
 export type GuessResponse = GameStatus & { message: string }
 export type ShareResponse = { message: string }
 export type ReminderResponse = { enabled: boolean; message?: string }
+export type RevealResponse = GameStatus & { message: string }
 
 export async function loadGameStatus(): Promise<GameStatus> {
   return await requestJson<GameStatus>('/api/daily/status') ?? buildLocalStatus()
@@ -23,6 +28,11 @@ export async function loadGameStatus(): Promise<GameStatus> {
 
 export async function submitGuessToGame(guess: string, startedAt: number): Promise<GuessResponse> {
   return await requestJson<GuessResponse>('/api/attempt/guess', { method: 'POST', body: JSON.stringify({ guess }) }) ?? submitGuessLocally(guess, startedAt)
+}
+
+export async function revealEvidence(kind: EvidenceKey): Promise<RevealResponse> {
+  return await requestJson<RevealResponse>('/api/evidence/reveal', { method: 'POST', body: JSON.stringify({ kind }) })
+    ?? revealEvidenceLocally(kind)
 }
 
 export async function shareResultToReddit(): Promise<ShareResponse> {
@@ -66,13 +76,16 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T | nul
 function buildLocalStatus(messageResult?: SavedResult | null, messageGuesses?: Guess[]): GameStatus {
   const puzzle = getTodaysPuzzle(readLocalDayOffset())
   const result = messageResult === undefined ? readSavedResult(puzzle.id, puzzle.dayKey) : messageResult
-  const guesses = result?.guesses ?? messageGuesses ?? []
+  const guesses = result?.guesses ?? messageGuesses ?? readLocalGuesses(puzzle.id, puzzle.dayKey)
+  const revealedEvidence = result ? EVIDENCE_ORDER : readLocalEvidence(puzzle.id, puzzle.dayKey)
   return {
-    puzzle: toPublicPuzzle(puzzle, Boolean(result), Math.min(2, guesses.length)),
+    puzzle: toPublicPuzzle(puzzle, Boolean(result), countRevealedLetters(revealedEvidence)),
     guesses,
     rows: buildGuessRows(puzzle, guesses),
     result,
     leaderboard: buildLeaderboard(result),
+    revealedEvidence,
+    cluesUsed: result?.cluesUsed ?? Math.max(0, revealedEvidence.length - 1),
   }
 }
 
@@ -90,14 +103,16 @@ function submitGuessLocally(rawGuess: string, startedAt: number): GuessResponse 
   if (nextGuesses.at(-1)?.correct || nextGuesses.length === MAX_GUESSES) {
     const solved = Boolean(nextGuesses.at(-1)?.correct)
     const seconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000))
+    const cluesUsed = Math.max(0, buildLocalStatus(null, currentGuesses).revealedEvidence.length - 1)
     const savedResult: SavedResult = {
       puzzleId: puzzle.id,
       dayKey: puzzle.dayKey,
       solved,
       guesses: nextGuesses,
-      score: solved ? scoreResult(nextGuesses.length, seconds) : 0,
+      score: solved ? scoreResult(nextGuesses.length, seconds, cluesUsed) : 0,
       seconds,
       streak: updateStreak(solved, puzzle.dayKey),
+      cluesUsed,
     }
     localStorage.setItem(getResultKey(puzzle.id, puzzle.dayKey), JSON.stringify(savedResult))
     localStorage.removeItem(guessKey(puzzle.id, puzzle.dayKey))
@@ -106,6 +121,17 @@ function submitGuessLocally(rawGuess: string, startedAt: number): GuessResponse 
 
   localStorage.setItem(guessKey(puzzle.id, puzzle.dayKey), JSON.stringify(nextGuesses))
   return { ...buildLocalStatus(null, nextGuesses), message: 'Not it. A stronger hint is now unlocked.' }
+}
+
+function revealEvidenceLocally(kind: EvidenceKey): RevealResponse {
+  const puzzle = getTodaysPuzzle(readLocalDayOffset())
+  const current = buildLocalStatus()
+  const next = getNextEvidence(current.revealedEvidence)
+  if (!next) return { ...current, message: 'All evidence is already revealed.' }
+  if (kind !== next) return { ...current, message: 'Reveal the evidence in order.' }
+  const revealedEvidence = [...current.revealedEvidence, kind]
+  localStorage.setItem(evidenceKey(puzzle.id, puzzle.dayKey), JSON.stringify(revealedEvidence))
+  return { ...buildLocalStatus(null, current.guesses), message: `Unlocked ${kind === 'photo' ? 'the source photo' : kind === 'caption' ? 'the caption fragment' : 'a letter'}.` }
 }
 
 function updateStreak(solved: boolean, dayKey: string) {
@@ -124,5 +150,14 @@ function readLocalGuesses(puzzleId: string, dayKey: string) {
   try { return JSON.parse(localStorage.getItem(guessKey(puzzleId, dayKey)) || '[]') as Guess[] } catch { return [] }
 }
 
+function readLocalEvidence(puzzleId: string, dayKey: string): EvidenceKey[] {
+  try {
+    return normalizeEvidence(JSON.parse(localStorage.getItem(evidenceKey(puzzleId, dayKey)) || 'null'))
+  } catch {
+    return ['riddle']
+  }
+}
+
 function guessKey(puzzleId: string, dayKey: string) { return `subreddit-sleuth-guesses:${dayKey}:${puzzleId}` }
+function evidenceKey(puzzleId: string, dayKey: string) { return `subreddit-sleuth-evidence:${dayKey}:${puzzleId}` }
 function readLocalDayOffset() { const value = Number(localStorage.getItem(DAY_OFFSET_KEY) || '0'); return Number.isFinite(value) ? value : 0 }

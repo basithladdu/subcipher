@@ -38,6 +38,27 @@
   color: #0f766e;
 }
 
+.help-button {
+  background: #ffffff;
+  border-color: #0f766e;
+  color: #0f766e;
+  min-height: 38px;
+}
+
+.help-guide {
+  background: #ffffff;
+  border: 1px solid #a5f3fc;
+  border-radius: 8px;
+  color: #164e63;
+  display: grid;
+  gap: 5px;
+  margin-bottom: 18px;
+  padding: 12px 14px;
+}
+
+.help-guide strong { color: #0e7490; }
+.help-guide span { font-size: 13px; }
+
 .eyebrow {
   color: #c2410c;
   font-size: 12px;
@@ -143,6 +164,20 @@ h3 {
   padding: 8px 10px;
   position: absolute;
 }
+
+.hidden-evidence {
+  align-items: center;
+  color: #cbd5e1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 104px;
+  min-height: 104px;
+  justify-content: center;
+}
+
+.hidden-evidence span { font-size: 14px; font-weight: 800; }
+.hidden-evidence button { min-height: 40px; }
 
 .guess-area,
 .side-panel,
@@ -324,6 +359,16 @@ button:disabled {
 .evidence-list span {
   overflow-wrap: anywhere;
 }
+
+.reveal-button {
+  justify-self: start;
+  min-height: 36px;
+  padding: 0 11px;
+}
+
+.locked-copy { color: #94a3b8; }
+.clue-score { color: #64748b; font-size: 13px; font-weight: 800; }
+.clue-score strong { color: #c2410c; }
 
 .wordle-board {
   display: grid;
@@ -691,6 +736,19 @@ button:disabled {
     gap: 6px;
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .topbar { gap: 6px; padding: 2px 0 6px; }
+  .topbar .eyebrow { font-size: 10px; }
+  .help-button { min-height: 36px; }
+
+  .visual-wrap { aspect-ratio: auto; min-height: 150px; }
+  .hidden-evidence { height: 64px; min-height: 64px; }
+  .hidden-evidence button { min-height: 34px; }
+  .guess-area { gap: 8px; }
+  .riddle-card { gap: 4px; padding: 9px 10px; }
+  .riddle-card p { font-size: 14px; }
+  .game-layout { gap: 10px; }
+  .side-panel { gap: 12px; }
 
   .metric {
     min-height: 54px;

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, FormEvent, KeyboardEvent } from 'react'
 import './App.css'
-import { enableDailyReminder, getShareText, loadGameStatus, loadReminderStatus, readStreak, shareResultToReddit, submitGuessToGame } from './api'
+import { enableDailyReminder, getShareText, loadGameStatus, loadReminderStatus, readStreak, revealEvidence, shareResultToReddit, submitGuessToGame } from './api'
 import { MAX_GUESSES } from './game'
-import type { GameStatus, LetterTile } from './game'
+import type { EvidenceKey, GameStatus, LetterTile } from './game'
 
 function App() {
   const [status, setStatus] = useState<GameStatus | null>(null)
@@ -15,6 +15,8 @@ function App() {
   const [sharing, setSharing] = useState(false)
   const [reminderEnabled, setReminderEnabled] = useState(false)
   const [reminderLoading, setReminderLoading] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
+  const [revealing, setRevealing] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -101,6 +103,19 @@ function App() {
     setReminderLoading(false)
   }
 
+  async function revealNextEvidence() {
+    if (revealing || finished) return
+    const currentStatus = status
+    if (!currentStatus) return
+    const next = (['photo', 'letter-1', 'caption', 'letter-2'] as EvidenceKey[]).find((key) => !currentStatus.revealedEvidence.includes(key))
+    if (!next) return
+    setRevealing(true)
+    const nextStatus = await revealEvidence(next)
+    setStatus(nextStatus)
+    setMessage(nextStatus.message)
+    setRevealing(false)
+  }
+
   return (
     <main className="shell">
       <section className="topbar" aria-label="Game status">
@@ -111,7 +126,8 @@ function App() {
         <nav className="view-tabs" aria-label="Game views">
           <button type="button" className={activeView === 'play' ? 'active' : ''} aria-pressed={activeView === 'play'} onClick={() => setActiveView('play')}>Play</button>
           <button type="button" className={activeView === 'leaderboard' ? 'active' : ''} aria-pressed={activeView === 'leaderboard'} onClick={() => setActiveView('leaderboard')}>Leaderboard</button>
-        </nav>
+         </nav>
+         <button className="help-button" type="button" aria-expanded={helpOpen} onClick={() => setHelpOpen((open) => !open)}>Help</button>
         <div className="status-grid">
           <Metric label="Daily key" value={puzzle.dayKey.slice(5)} />
           <Metric label="Lives" value={`${Math.max(0, MAX_GUESSES - guesses.length)} left`} />
@@ -120,21 +136,17 @@ function App() {
       </section>
 
       {activeView === 'play' ? <>
+        {helpOpen ? <section className="help-guide" aria-label="How to play"><strong>How to play</strong><span>Read the riddle, reveal clues only when needed, then type the subreddit name without r/.</span><span>Green is the right spot, yellow is the wrong spot, and gray is not in the answer. Each reveal lowers the final clue score.</span></section> : null}
         <section className="game-layout">
           <section className="play-panel" aria-labelledby="puzzle-title">
-            <div className="visual-wrap">
-              <img className="clue-image" src={puzzle.image} alt={puzzle.imageAlt} />
-              <div className="visual-badge">{puzzle.title}</div>
-            </div>
+             {status.revealedEvidence.includes('photo') ? <div className="visual-wrap"><img className="clue-image" src={puzzle.image} alt={puzzle.imageAlt} /><div className="visual-badge">{puzzle.title}</div></div> : <div className="visual-wrap hidden-evidence"><span>Photo evidence is locked</span><button type="button" onClick={revealNextEvidence} disabled={revealing}>{revealing ? 'Revealing...' : 'Reveal photo'}</button></div>}
             <div className="guess-area">
               <div>
                 <p className="eyebrow">Mystery community</p>
                 <h2 id="puzzle-title">Trace the source from the evidence</h2>
               </div>
-              <details className="instructions">
-                <summary>Case rules</summary>
-                <p>Start with the image. Each miss releases the next piece of evidence. Type the subreddit without `r/`. Green letters are in the right place and yellow letters appear elsewhere in the answer.</p>
-              </details>
+               <div className="riddle-card"><span>Riddle</span><p>{puzzle.riddle}</p></div>
+               <EvidenceLadder puzzle={puzzle} status={status} onReveal={revealNextEvidence} revealing={revealing} />
               {message ? <p className="message">{message}</p> : null}
             </div>
           </section>
@@ -142,7 +154,7 @@ function App() {
           <aside className="side-panel" aria-label="Hints and attempts">
             <section>
               <div className="section-title"><h2>Evidence</h2><span>{Math.min(4, guesses.length)}/4 unlocked</span></div>
-              <EvidenceLadder puzzle={puzzle} guessCount={guesses.length} />
+               <p className="clue-score">Clue score: <strong>{Math.max(0, 5 - status.cluesUsed)}/5</strong></p>
             </section>
             <section>
               <div className="section-title"><h2>Daily grid</h2><span>{puzzle.answerLength} letters</span></div>
@@ -172,7 +184,8 @@ function App() {
             <p>{result.solved ? 'Your official score and streak are locked in.' : `The mystery community was ${puzzle.answer ?? 'revealed in the daily post'}.`}</p>
           </div>
           <div className="outcome-stats" aria-label="Daily result">
-            <Metric label="Score" value={`${result.score}`} />
+             <Metric label="Score" value={`${result.score}`} />
+             <Metric label="Clue score" value={`${Math.max(0, 5 - (result.cluesUsed ?? status.cluesUsed))}/5`} />
             <Metric label="Streak" value={`${result.streak}`} />
             <Metric label="Solved" value={`${result.guesses.length}/${MAX_GUESSES}`} />
           </div>
@@ -204,19 +217,18 @@ function Metric({ label, value }: { label: string; value: string }) {
   return <div className="metric"><span>{label}</span><strong>{value}</strong></div>
 }
 
-function EvidenceLadder({ puzzle, guessCount }: { puzzle: GameStatus['puzzle']; guessCount: number }) {
+function EvidenceLadder({ puzzle, status, onReveal, revealing }: { puzzle: GameStatus['puzzle']; status: GameStatus; onReveal: () => void; revealing: boolean }) {
   const visibleLetters = Array.from({ length: puzzle.answerLength }, (_, index) => puzzle.revealedLetters.find((item) => item.position === index)?.letter.toUpperCase() ?? '·').join(' ')
   const entries = [
-    { label: 'Image evidence', value: 'Released at the start', unlocked: true },
-    { label: 'Cipher letter 1', value: visibleLetters, unlocked: puzzle.revealedLetters.length >= 1 },
-    { label: 'Cipher letter 2', value: visibleLetters, unlocked: puzzle.revealedLetters.length >= 2 },
-    { label: puzzle.clueFormat === 'cryptic' ? `Cryptic clue (${puzzle.enumeration})` : 'Riddle', value: puzzle.riddle, unlocked: guessCount >= 3 },
-    { label: 'Caption fragment', value: puzzle.captionHint ?? puzzle.hints[0], unlocked: guessCount >= 4 },
+    { key: 'photo' as EvidenceKey, label: 'Photo', value: 'Visual clue revealed above.', unlocked: status.revealedEvidence.includes('photo') },
+    { key: 'letter-1' as EvidenceKey, label: 'Letter 1', value: visibleLetters, unlocked: status.revealedEvidence.includes('letter-1') },
+    { key: 'caption' as EvidenceKey, label: 'Caption', value: puzzle.captionHint ?? puzzle.hints[0], unlocked: status.revealedEvidence.includes('caption') },
+    { key: 'letter-2' as EvidenceKey, label: 'Letter 2', value: visibleLetters, unlocked: status.revealedEvidence.includes('letter-2') },
   ]
 
   return <ol className="hint-list evidence-list">
-    {entries.map((entry) => <li className={entry.unlocked ? 'revealed' : ''} key={entry.label}>
-      <strong>{entry.label}</strong><span>{entry.unlocked ? entry.value : 'Locked until another miss'}</span>
+    {entries.map((entry, index) => <li className={entry.unlocked ? 'revealed' : ''} key={entry.label}>
+      <strong>{entry.label}</strong>{entry.unlocked ? <span>{entry.value}</span> : index === status.revealedEvidence.length - 1 ? <button type="button" className="reveal-button" onClick={onReveal} disabled={revealing}>{revealing ? 'Revealing...' : `Reveal ${entry.label.toLowerCase()}`}</button> : <span className="locked-copy">Locked</span>}
     </li>)}
   </ol>
 }

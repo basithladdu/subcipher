@@ -34,7 +34,12 @@ export type SavedResult = {
   score: number
   seconds: number
   streak: number
+  cluesUsed?: number
 }
+
+export type EvidenceKey = 'riddle' | 'photo' | 'letter-1' | 'caption' | 'letter-2'
+
+export const EVIDENCE_ORDER: EvidenceKey[] = ['riddle', 'photo', 'letter-1', 'caption', 'letter-2']
 
 export type LeaderboardEntry = {
   name: string
@@ -68,6 +73,8 @@ export type GameStatus = {
   rows: GuessRow[]
   result: SavedResult | null
   leaderboard: LeaderboardEntry[]
+  revealedEvidence: EvidenceKey[]
+  cluesUsed: number
 }
 
 export const MAX_GUESSES = 6
@@ -220,10 +227,25 @@ export function isCorrectGuess(puzzle: Puzzle, value: string) {
   return puzzle.aliases.some((alias) => normalizeGuess(alias) === normalized)
 }
 
-export function scoreResult(attempts: number, seconds: number) {
+export function scoreResult(attempts: number, seconds: number, cluesUsed = 0) {
   const attemptScore = Math.max(120, 1000 - (attempts - 1) * 140)
   const timeBonus = Math.max(0, 90 - seconds)
-  return attemptScore + timeBonus
+  return Math.max(0, attemptScore + timeBonus - cluesUsed * 120)
+}
+
+export function getNextEvidence(revealedEvidence: EvidenceKey[]) {
+  return EVIDENCE_ORDER.find((key) => !revealedEvidence.includes(key)) ?? null
+}
+
+export function normalizeEvidence(value: unknown): EvidenceKey[] {
+  if (!Array.isArray(value)) return ['riddle']
+
+  const revealed = EVIDENCE_ORDER.filter((key, index) => value[index] === key)
+  return revealed.length > 0 && revealed[0] === 'riddle' ? revealed : ['riddle']
+}
+
+export function countRevealedLetters(revealedEvidence: EvidenceKey[]) {
+  return revealedEvidence.filter((key) => key === 'letter-1' || key === 'letter-2').length
 }
 
 export function getResultKey(puzzleId: string, dayKey: string) {
@@ -334,7 +356,7 @@ export function buildShareText(puzzle: Pick<Puzzle, 'date'>, result: SavedResult
   return [
     `SubCipher ${puzzle.date}`,
     result.solved ? `Solved in ${result.guesses.length}/${MAX_GUESSES}` : `Missed ${MAX_GUESSES}/${MAX_GUESSES}`,
-    `Score ${result.score} | Streak ${result.streak}`,
+    `Score ${result.score} | Streak ${result.streak} | Clues ${result.cluesUsed ?? 0}`,
     marks,
     'No spoilers. Drop your clue theory below.',
   ].join('\n')

@@ -35,6 +35,12 @@ body {
   min-width: 320px;
 }
 
+button,
+input,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
 #root {
   min-height: 100svh;
 }

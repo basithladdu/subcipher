@@ -4,9 +4,11 @@ import { EntrypointHeight, context, createServer, getServerPort, notifications, 
 import type { MenuItemRequest, UiResponse } from '@devvit/web/shared'
 import {
   MAX_GUESSES,
+  EVIDENCE_ORDER,
   buildGuessRows,
   buildShareText,
   getDailyKey,
+  getNextEvidence,
   getTodaysPuzzle,
   isCorrectGuess,
   normalizeGuess,
@@ -14,7 +16,7 @@ import {
   scoreResult,
   toPublicPuzzle,
 } from '../game'
-import type { GameStatus, Guess, LeaderboardEntry, Puzzle, SavedResult } from '../game'
+import type { EvidenceKey, GameStatus, Guess, LeaderboardEntry, Puzzle, SavedResult } from '../game'
 
 const app = new Hono()
 const PLAYER_DATA_TTL_SECONDS = 31 * 24 * 60 * 60
@@ -59,7 +61,8 @@ app.post('/api/attempt/guess', async (c) => {
 
   if (correct || nextGuesses.length === MAX_GUESSES) {
     const seconds = Math.max(1, Math.round((Date.now() - attempt.startedAt) / 1000))
-    const score = correct ? scoreResult(nextGuesses.length, seconds) : 0
+    const cluesUsed = Math.max(0, attempt.revealedEvidence.length - 1)
+    const score = correct ? scoreResult(nextGuesses.length, seconds, cluesUsed) : 0
     const streak = await updateStreak(userKey, correct, puzzle.dayKey)
     const result: SavedResult = {
       puzzleId: puzzle.id,
@@ -69,6 +72,7 @@ app.post('/api/attempt/guess', async (c) => {
       score,
       seconds,
       streak,
+      cluesUsed,
     }
     await writeResult(puzzle.id, puzzle.dayKey, userKey, result)
     await clearAttempt(puzzle.id, puzzle.dayKey, userKey)
@@ -80,10 +84,34 @@ app.post('/api/attempt/guess', async (c) => {
     })
   }
 
-  await writeAttempt(puzzle.id, puzzle.dayKey, userKey, { guesses: nextGuesses, startedAt: attempt.startedAt })
+  await writeAttempt(puzzle.id, puzzle.dayKey, userKey, {
+    guesses: nextGuesses,
+    startedAt: attempt.startedAt,
+    revealedEvidence: attempt.revealedEvidence,
+  })
   return c.json({
-    ...await buildStatus(dayOffset, null, nextGuesses),
-    message: 'Not it. A stronger hint is now unlocked.',
+      ...await buildStatus(dayOffset, null, nextGuesses),
+    message: 'Not it. Choose the next evidence item when you are ready.',
+  })
+})
+
+app.post('/api/evidence/reveal', async (c) => {
+  const body = await readJson<{ kind?: EvidenceKey }>(c.req)
+  const puzzle = await getDailyPuzzle(0)
+  const userKey = getUserKey()
+  const storedResult = await readResult(puzzle.id, puzzle.dayKey, userKey)
+  if (storedResult) return c.json({ ...await buildStatus(0, storedResult), message: 'This daily result is already locked.' })
+
+  const attempt = await getOrCreateAttempt(puzzle.id, puzzle.dayKey, userKey)
+  const next = getNextEvidence(attempt.revealedEvidence)
+  if (!next) return c.json({ ...await buildStatus(0, null, attempt.guesses), message: 'All evidence is already revealed.' })
+  if (body.kind !== next) return c.json({ ...await buildStatus(0, null, attempt.guesses), message: 'Reveal the evidence in order.' }, 400)
+
+  const updatedAttempt = { ...attempt, revealedEvidence: [...attempt.revealedEvidence, next] }
+  await writeAttempt(puzzle.id, puzzle.dayKey, userKey, updatedAttempt)
+  return c.json({
+    ...await buildStatus(0, null, updatedAttempt.guesses),
+    message: `Unlocked ${next === 'photo' ? 'the source photo' : next === 'caption' ? 'the caption fragment' : 'a letter'}.`,
   })
 })
 
@@ -265,12 +293,15 @@ async function buildStatus(dayOffset: number, knownResult?: SavedResult | null, 
   const storedAttempt = result ? null : await getOrCreateAttempt(puzzle.id, puzzle.dayKey, userKey)
   const guesses = result?.guesses ?? knownGuesses ?? storedAttempt?.guesses ?? []
 
+  const revealedEvidence = result ? EVIDENCE_ORDER : normalizeRevealedEvidence(storedAttempt?.revealedEvidence)
   return {
-    puzzle: toPublicPuzzle(puzzle, Boolean(result), Math.min(2, guesses.length)),
+    puzzle: toPublicPuzzle(puzzle, Boolean(result), revealedEvidence.filter((key) => key.startsWith('letter')).length),
     guesses,
     rows: buildGuessRows(puzzle, guesses),
     result,
     leaderboard: await readLeaderboard(puzzle.id, puzzle.dayKey, result),
+    revealedEvidence,
+    cluesUsed: result?.cluesUsed ?? Math.max(0, revealedEvidence.length - 1),
   }
 }
 
@@ -288,17 +319,34 @@ async function writeResult(puzzleId: string, dayKey: string, userKey: string, re
 async function getOrCreateAttempt(puzzleId: string, dayKey: string, userKey: string): Promise<StoredAttempt> {
   const raw = await redis.hGet(attemptKey(puzzleId, dayKey), userKey)
   if (!raw) {
-    const attempt = { guesses: [], startedAt: Date.now() }
+    const attempt = { guesses: [], startedAt: Date.now(), revealedEvidence: ['riddle'] as EvidenceKey[] }
     await writeAttempt(puzzleId, dayKey, userKey, attempt)
     return attempt
   }
 
   const parsed = JSON.parse(raw) as Guess[] | StoredAttempt
-  if (Array.isArray(parsed)) return { guesses: parsed, startedAt: Date.now() }
-  return {
+  if (Array.isArray(parsed)) {
+    const migrated = { guesses: parsed, startedAt: Date.now(), revealedEvidence: ['riddle'] as EvidenceKey[] }
+    await writeAttempt(puzzleId, dayKey, userKey, migrated)
+    return migrated
+  }
+  const normalized: StoredAttempt = {
     guesses: Array.isArray(parsed.guesses) ? parsed.guesses : [],
     startedAt: Number.isFinite(parsed.startedAt) ? parsed.startedAt : Date.now(),
+    revealedEvidence: normalizeRevealedEvidence(parsed.revealedEvidence),
   }
+  if (JSON.stringify(normalized) !== raw) await writeAttempt(puzzleId, dayKey, userKey, normalized)
+  return normalized
+}
+
+function normalizeRevealedEvidence(value: unknown): EvidenceKey[] {
+  if (!Array.isArray(value)) return ['riddle']
+  const revealed: EvidenceKey[] = []
+  for (const key of EVIDENCE_ORDER) {
+    if (value[revealed.length] !== key) break
+    revealed.push(key)
+  }
+  return revealed.length ? revealed : ['riddle']
 }
 
 async function writeAttempt(puzzleId: string, dayKey: string, userKey: string, attempt: StoredAttempt) {
@@ -458,6 +506,7 @@ function dailyScoreThreadKey(dayKey: string) {
 type StoredAttempt = {
   guesses: Guess[]
   startedAt: number
+  revealedEvidence: EvidenceKey[]
 }
 
 function streakKey() {
