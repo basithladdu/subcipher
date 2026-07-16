@@ -1,10 +1,10 @@
-# Subreddit Sleuth: Devpost Submission Draft
+# SubCipher: Devpost Submission Draft
 
 Use this copy after the Devvit app has been uploaded and a public demo post has been created. Replace only the bracketed URLs and verify every claim against the live post before submitting.
 
 ## Title
 
-Subreddit Sleuth
+SubCipher
 
 ## Tagline
 
@@ -12,7 +12,7 @@ One image, one riddle, six guesses: identify today's mystery subreddit.
 
 ## Project Description
 
-Subreddit Sleuth is a daily deduction game for Reddit. Each puzzle points to one mystery subreddit through an original visual clue and a riddle. Players have six guesses. The board gives familiar Wordle feedback: green for the right letter in the right position, yellow for a letter in the answer but the wrong position, and muted tiles for letters that are not in the answer. Misses unlock stronger evidence, so every guess has a cost and a purpose.
+SubCipher is a daily deduction game for Reddit. Each puzzle points to one mystery subreddit through an original visual clue and a riddle. Players have six guesses. The board gives familiar Wordle feedback: green for the right letter in the right position, yellow for a letter in the answer but the wrong position, and muted tiles for letters that are not in the answer. Misses unlock stronger evidence, so every guess has a cost and a purpose.
 
 The answer is not a random trivia fact. Players infer a community from its habits, vocabulary, recurring jokes, and visual culture. That makes the Reddit comments useful: people compare near misses, explain the reference, and reveal how they recognized the community.
 
@@ -59,7 +59,7 @@ Built with React, TypeScript, Vite, Hono, and Devvit Web. The server uses Devvit
 
 ## 55-Second Demonstration Script
 
-0-05 seconds: Show the daily post and its visual clue. “This is Subreddit Sleuth, a daily game where you identify a Reddit community from its culture.”
+0-05 seconds: Show the daily post and its visual clue. "This is SubCipher, a daily game where you identify a Reddit community from its culture."
 
 05-16 seconds: Show the riddle and enter one wrong guess. Point out exact-position, wrong-position, and absent-letter feedback.
 

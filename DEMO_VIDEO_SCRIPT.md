@@ -2,7 +2,7 @@
 
 Record this from the public Reddit post, not localhost.
 
-0-05s: Show the post and the visual clue. "Subreddit Sleuth asks players to identify a Reddit community from its culture."
+0-05s: Show the post and the visual clue. "SubCipher asks players to identify a Reddit community from its culture."
 
 05-15s: Open the game. Show the clue, riddle, six-attempt board, and keyboard. "Every player gets the same daily case."
 

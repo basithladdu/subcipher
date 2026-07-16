@@ -1,4 +1,4 @@
-# Subreddit Sleuth
+# SubCipher
 
 Daily community-deduction game prototype for Reddit's Games with a Hook Hackathon.
 
